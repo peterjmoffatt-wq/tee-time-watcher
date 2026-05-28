@@ -1,0 +1,19 @@
+[
+  {
+    "id": "bethpage",
+    "name": "Bethpage State Park",
+    "site": "foreupsoftware",
+    "facilityId": "19765",
+    "bookingUrl": "https://foreupsoftware.com/index.php/booking/19765",
+    "username": "your@email.com",
+    "password": "yourpassword",
+    "credit_card_id": "YOUR_CARD_ID",
+    "courses": [
+      { "id": "2431", "name": "Black",  "bookingClass": "2136", "emoji": "⬛" },
+      { "id": "2433", "name": "Blue",   "bookingClass": "2140", "emoji": "🟦" },
+      { "id": "2432", "name": "Red",    "bookingClass": "2138", "emoji": "🟥" },
+      { "id": "2435", "name": "Yellow", "bookingClass": "2144", "emoji": "🟨" },
+      { "id": "2434", "name": "Green",  "bookingClass": "2142", "emoji": "🟩" }
+    ]
+  }
+]

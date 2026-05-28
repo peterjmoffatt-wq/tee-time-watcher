@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Tee Time Watcher</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0f1a0f; color: #e8f5e8; }
+    .card  { background: #1a2e1a; border: 1px solid #2d4a2d; }
+    .card2 { background: #152515; border: 1px solid #243d24; }
+    .inp   { background: #0f1a0f; border: 1px solid #2d4a2d; color: #e8f5e8; border-radius: 0.5rem; padding: 0.6rem 0.75rem; font-size: 0.875rem; width: 100%; }
+    .inp:focus { outline: none; border-color: #4ade80; }
+    .btn-green  { background:#16a34a; } .btn-green:hover  { background:#15803d; }
+    .btn-red    { background:#dc2626; } .btn-red:hover    { background:#b91c1c; }
+    .btn-gray   { background:#374151; } .btn-gray:hover   { background:#4b5563; }
+    .btn-yellow { background:#ca8a04; } .btn-yellow:hover { background:#a16207; }
+    .dot-on  { background:#4ade80; box-shadow:0 0 7px #4ade80; }
+    .dot-off { background:#6b7280; }
+    .log-wrap { font-family:'SF Mono','Courier New',monospace; font-size:11px; }
+    .ll-found { color:#4ade80; font-weight:700; }
+    .ll-error { color:#f87171; }
+    .ll-check { color:#64748b; }
+    .ll-info  { color:#94a3b8; }
+    select option { background:#1a2e1a; }
+    ::-webkit-scrollbar { width:3px; }
+    ::-webkit-scrollbar-thumb { background:#2d4a2d; border-radius:2px; }
+    .course-btn { padding:0.6rem 0.25rem; border-radius:0.75rem; font-size:0.8rem;
+                  font-weight:600; border:1px solid transparent; transition:all 0.15s; }
+    .course-btn.active   { border-color:#4ade80; background:#14532d; color:#4ade80; }
+    .course-btn.inactive { background:#111f11; color:#6b7280; }
+    .cal-day { font-size:0.8rem; padding:0.35rem 0; border-radius:0.5rem; cursor:pointer; text-align:center; transition:all 0.1s; }
+    .cal-day.past     { color:#374151; cursor:default; }
+    .cal-day.today    { border:1px solid #4ade80; color:#4ade80; }
+    .cal-day.selected { background:#16a34a; color:#fff; font-weight:700; }
+    .cal-day.open:hover { background:#1a3d1a; }
+  </style>
+</head>
+<body class="min-h-screen p-4 pb-12">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h1 class="text-2xl font-bold text-green-400">⛳ Tee Time</h1>
+      <p class="text-xs text-green-800 mt-0.5">Multi-course watcher</p>
+    </div>
+    <button onclick="showNewWatcher()"
+      class="btn-green text-white text-sm font-semibold px-4 py-2 rounded-xl active:scale-95">
+      + Watch
+    </button>
+  </div>
+
+  <!-- 7 PM Drop Banner -->
+  <div id="drop-banner" class="card rounded-xl p-4 mb-4 flex items-center justify-between">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="text-yellow-400 font-bold text-sm">⏰ Tonight's Drop</span>
+        <span id="drop-date-label" class="text-green-300 font-semibold text-sm"></span>
+      </div>
+      <div id="drop-countdown" class="text-xs text-gray-500 mt-0.5"></div>
+    </div>
+    <button onclick="showSnipe()"
+      class="bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-bold px-4 py-2 rounded-xl active:scale-95 flex-shrink-0">
+      Snipe ⚡
+    </button>
+  </div>
+
+  <!-- Active watchers list -->
+  <div id="watchers-list" class="flex flex-col gap-3 mb-6">
+    <p class="text-sm text-gray-600 italic text-center py-4">Loading...</p>
+  </div>
+
+  <!-- ── New Watcher Panel (slide-up) ─────────────────────────────────── -->
+  <div id="new-panel" class="fixed inset-0 bg-black/80 flex items-end justify-center hidden z-50">
+    <div class="card rounded-t-2xl p-5 w-full max-w-lg max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold text-green-400">New Watcher</h2>
+        <button onclick="hideNewWatcher()" class="text-gray-500 text-2xl leading-none">✕</button>
+      </div>
+
+      <!-- Facility -->
+      <label class="text-xs font-semibold text-green-700 uppercase tracking-wider">Facility</label>
+      <select id="np-facility" class="inp mt-1 mb-3" onchange="onFacilityChange()"></select>
+
+      <!-- Course grid -->
+      <label class="text-xs font-semibold text-green-700 uppercase tracking-wider">Course</label>
+      <div id="np-courses" class="grid grid-cols-3 gap-2 mt-1 mb-4"></div>
+
+      <!-- Calendar -->
+      <div class="flex items-center justify-between mb-2">
+        <label class="text-xs font-semibold text-green-700 uppercase tracking-wider">Dates</label>
+        <div class="flex items-center gap-1">
+          <button onclick="prevMonth()" class="text-gray-500 hover:text-green-400 text-xl w-7 h-7 flex items-center justify-center rounded">‹</button>
+          <span id="cal-month" class="text-sm font-semibold text-green-300 w-28 text-center"></span>
+          <button onclick="nextMonth()" class="text-gray-500 hover:text-green-400 text-xl w-7 h-7 flex items-center justify-center rounded">›</button>
+        </div>
+      </div>
+      <div id="calendar" class="mb-2"></div>
+      <div id="cal-chips" class="flex flex-wrap gap-1.5 mb-4 min-h-5"></div>
+
+      <!-- Players -->
+      <label class="text-xs font-semibold text-green-700 uppercase tracking-wider block mb-1">Players</label>
+      <div class="flex gap-1.5 mb-4">
+        <button onclick="setPlayers(1)" id="p1" class="flex-1 py-2 rounded-lg text-sm font-medium btn-green text-white">1</button>
+        <button onclick="setPlayers(2)" id="p2" class="flex-1 py-2 rounded-lg text-sm font-medium btn-gray  text-white">2</button>
+        <button onclick="setPlayers(3)" id="p3" class="flex-1 py-2 rounded-lg text-sm font-medium btn-gray  text-white">3</button>
+        <button onclick="setPlayers(4)" id="p4" class="flex-1 py-2 rounded-lg text-sm font-medium btn-gray  text-white">4</button>
+      </div>
+
+      <!-- Time range -->
+      <label class="text-xs font-semibold text-green-700 uppercase tracking-wider block mb-1">Time Window</label>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div>
+          <p class="text-xs text-gray-600 mb-1">From</p>
+          <select id="np-after" class="inp"></select>
+        </div>
+        <div>
+          <p class="text-xs text-gray-600 mb-1">Until</p>
+          <select id="np-before" class="inp"></select>
+        </div>
+      </div>
+
+      <!-- Booking mode -->
+      <label class="text-xs font-semibold text-green-700 uppercase tracking-wider block mb-2">Booking Mode</label>
+      <div class="flex rounded-xl overflow-hidden border border-green-900 mb-2">
+        <button id="mode-auto" onclick="setMode('auto')"
+          class="flex-1 py-2.5 text-sm font-semibold transition-colors bg-green-700 text-white">
+          ⚡ Auto-book
+        </button>
+        <button id="mode-notify" onclick="setMode('notify')"
+          class="flex-1 py-2.5 text-sm font-semibold transition-colors bg-transparent text-gray-500">
+          🔔 Notify only
+        </button>
+      </div>
+      <p id="mode-desc" class="text-xs text-gray-500 mb-4">Books instantly when a slot opens (charges card on file).</p>
+
+      <button onclick="startWatcher()"
+        class="w-full py-3.5 rounded-xl text-base font-bold text-white btn-green active:scale-95">
+        Start Watching
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Add Facility Modal ──────────────────────────────────────────── -->
+  <div id="facility-modal" class="fixed inset-0 bg-black/80 flex items-end justify-center hidden z-50">
+    <div class="card rounded-t-2xl p-5 w-full max-w-lg">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold text-green-400">Add Facility</h2>
+        <button onclick="hideFacilityModal()" class="text-gray-500 text-2xl leading-none">✕</button>
+      </div>
+      <div class="flex flex-col gap-3">
+        <input id="fn-name"     class="inp" placeholder="Facility name (e.g. Pebble Beach)">
+        <input id="fn-url"      class="inp" placeholder="Booking URL">
+        <input id="fn-user"     class="inp" placeholder="Username / email">
+        <input id="fn-pass"     class="inp" type="password" placeholder="Password">
+        <input id="fn-facility" class="inp" placeholder="Facility ID (from booking URL)">
+        <div class="flex gap-3 mt-1">
+          <button onclick="hideFacilityModal()" class="flex-1 py-3 rounded-xl text-sm font-medium btn-gray  text-white">Cancel</button>
+          <button onclick="saveFacility()"      class="flex-1 py-3 rounded-xl text-sm font-medium btn-green text-white">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add another facility link -->
+  <div class="text-center mt-4">
+    <button onclick="showFacilityModal()" class="text-xs text-green-900 underline">+ Add facility / course site</button>
+  </div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let facilities   = [];
+let selFacility  = null;
+let selCourse    = null;
+let players      = 1;
+let bookingMode  = 'auto';
+let openStreams   = {};        // watcherId → EventSource
+let snipeMode    = false;
+
+let selectedDates = new Set(); // Set of 'YYYY-MM-DD'
+let calMonth      = new Date();
+
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+  buildTimeOptions();
+  updateDropBanner();
+  setInterval(updateDropBanner, 1000);
+  await loadFacilities();
+  await refreshWatchers();
+  setInterval(refreshWatchers, 8000);
+}
+
+// ── 7 PM Drop Banner ───────────────────────────────────────────────────────
+function getDropInfo() {
+  const now      = new Date();
+  const drop7pm  = new Date(now); drop7pm.setHours(19, 0, 0, 0);
+  const windowEnd = new Date(drop7pm); windowEnd.setMinutes(15);
+
+  // If window already closed today, next drop is tomorrow
+  const offset   = now >= windowEnd ? 1 : 0;
+  const dropAt   = new Date(drop7pm); dropAt.setDate(dropAt.getDate() + offset);
+  const dropDate = new Date(now);     dropDate.setDate(dropDate.getDate() + 7 + offset);
+  return { dropAt, dropDate, live: now >= dropAt && now < windowEnd };
+}
+
+function updateDropBanner() {
+  const { dropAt, dropDate, live } = getDropInfo();
+  const now    = new Date();
+  const diffMs = dropAt - now;
+
+  const label = dropDate.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  document.getElementById('drop-date-label').textContent = label;
+
+  if (live) {
+    document.getElementById('drop-countdown').textContent = '🔴 LIVE — Drop is happening now!';
+    document.getElementById('drop-banner').classList.add('border-yellow-600');
+  } else if (diffMs > 0) {
+    const h  = Math.floor(diffMs / 3600000);
+    const m  = Math.floor((diffMs % 3600000) / 60000);
+    const s  = Math.floor((diffMs % 60000) / 1000);
+    const ct = h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+    document.getElementById('drop-countdown').textContent = `Drop in ${ct} — 7:00 PM`;
+    document.getElementById('drop-banner').classList.remove('border-yellow-600');
+  }
+}
+
+function showSnipe() {
+  snipeMode = true;
+  const { dropDate } = getDropInfo();
+  selectedDates = new Set();
+  selectedDates.add(dropDate.toISOString().slice(0, 10));
+  calMonth = new Date(dropDate.getFullYear(), dropDate.getMonth(), 1);
+  setPlayers(1);
+  setMode('auto');
+  document.getElementById('np-before').value = '10:00';
+  document.getElementById('new-panel').classList.remove('hidden');
+  renderCourseGrid();
+  renderCalendar();
+  updatePanelTitle();
+}
+
+function updatePanelTitle() {
+  document.querySelector('#new-panel h2').textContent = snipeMode ? '⚡ Snipe 7 PM Drop' : 'New Watcher';
+  document.querySelector('#new-panel button[onclick="startWatcher()"]').textContent =
+    snipeMode ? 'Schedule Snipe' : 'Start Watching';
+}
+
+// ── Time options ───────────────────────────────────────────────────────────
+function buildTimeOptions() {
+  const afterSel  = document.getElementById('np-after');
+  const beforeSel = document.getElementById('np-before');
+
+  let afterOpts  = '<option value="">Opening (first available)</option>';
+  let beforeOpts = '<option value="">Any time</option>';
+
+  for (let h = 6; h <= 19; h++) {
+    for (let m = 0; m < 60; m += 30) {
+      const hh     = String(h).padStart(2,'0');
+      const mm     = String(m).padStart(2,'0');
+      const val    = `${hh}:${mm}`;
+      const label  = formatTime(val);
+      afterOpts  += `<option value="${val}">${label}</option>`;
+      beforeOpts += `<option value="${val}">${label}</option>`;
+    }
+  }
+
+  afterSel.innerHTML  = afterOpts;
+  beforeSel.innerHTML = beforeOpts;
+
+  // Default: no start filter, end at 3:00 PM
+  beforeSel.value = '15:00';
+}
+
+function formatTime(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  const period = h < 12 ? 'AM' : 'PM';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(m).padStart(2,'0')} ${period}`;
+}
+
+// ── Facilities ─────────────────────────────────────────────────────────────
+async function loadFacilities() {
+  const res = await fetch('/api/courses');
+  facilities = await res.json();
+  const sel = document.getElementById('np-facility');
+  sel.innerHTML = facilities.map((f, i) =>
+    `<option value="${i}">${f.name}</option>`
+  ).join('') + `<option value="add">+ Add new facility…</option>`;
+  selectFacilityIdx(0);
+}
+
+function onFacilityChange() {
+  const val = document.getElementById('np-facility').value;
+  if (val === 'add') { showFacilityModal(); return; }
+  selectFacilityIdx(parseInt(val));
+}
+
+function selectFacilityIdx(idx) {
+  selFacility = facilities[idx];
+  selCourse   = null;
+  renderCourseGrid();
+}
+
+function renderCourseGrid() {
+  const grid = document.getElementById('np-courses');
+  if (!selFacility) { grid.innerHTML = ''; return; }
+  grid.innerHTML = selFacility.courses.map(c => `
+    <button onclick="selectCourse('${c.id}')"
+      id="cb-${c.id}"
+      class="course-btn ${selCourse?.id === c.id ? 'active' : 'inactive'}">
+      ${c.emoji}<br>${c.name}
+    </button>
+  `).join('');
+}
+
+function selectCourse(id) {
+  selCourse = selFacility.courses.find(c => c.id === id);
+  renderCourseGrid();
+}
+
+// ── Calendar ───────────────────────────────────────────────────────────────
+function renderCalendar() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const year  = calMonth.getFullYear();
+  const month = calMonth.getMonth();
+
+  document.getElementById('cal-month').textContent =
+    calMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const firstDow    = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const headers = ['Su','Mo','Tu','We','Th','Fr','Sa'].map(d =>
+    `<div class="text-center text-xs text-gray-600 font-medium py-1">${d}</div>`
+  ).join('');
+
+  const blanks = Array(firstDow).fill('<div></div>').join('');
+
+  const days = Array.from({ length: daysInMonth }, (_, i) => {
+    const day     = i + 1;
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const date    = new Date(year, month, day);
+    const isPast  = date < today;
+    const isSel   = selectedDates.has(dateStr);
+    const isToday = date.getTime() === today.getTime();
+
+    let cls = 'cal-day ';
+    if (isPast)       cls += 'past';
+    else if (isSel)   cls += 'selected';
+    else if (isToday) cls += 'today open';
+    else              cls += 'open';
+
+    const onclick = isPast ? '' : `onclick="toggleDate('${dateStr}')"`;
+    return `<div class="${cls}" ${onclick}>${day}</div>`;
+  }).join('');
+
+  document.getElementById('calendar').innerHTML =
+    `<div class="grid grid-cols-7 gap-0.5">${headers}${blanks}${days}</div>`;
+
+  renderChips();
+}
+
+function toggleDate(dateStr) {
+  if (selectedDates.has(dateStr)) selectedDates.delete(dateStr);
+  else selectedDates.add(dateStr);
+  renderCalendar();
+}
+
+function renderChips() {
+  const sorted = [...selectedDates].sort();
+  document.getElementById('cal-chips').innerHTML = sorted.map(d => {
+    const [y, mo, day] = d.split('-');
+    const label = new Date(+y, +mo-1, +day).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    return `<span class="bg-green-900 text-green-300 text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
+      ${label}
+      <button onclick="toggleDate('${d}')" class="text-green-700 hover:text-green-300 leading-none ml-0.5">✕</button>
+    </span>`;
+  }).join('');
+}
+
+function prevMonth() {
+  calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1);
+  renderCalendar();
+}
+
+function nextMonth() {
+  calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1);
+  renderCalendar();
+}
+
+// ── Players ────────────────────────────────────────────────────────────────
+function setPlayers(n) {
+  players = n;
+  [1,2,3,4].forEach(i => {
+    document.getElementById(`p${i}`).className =
+      `flex-1 py-2 rounded-lg text-sm font-medium text-white ${i===n ? 'btn-green' : 'btn-gray'}`;
+  });
+}
+
+// ── Booking mode ───────────────────────────────────────────────────────────
+function setMode(mode) {
+  bookingMode = mode;
+  const isAuto = mode === 'auto';
+  document.getElementById('mode-auto').className =
+    `flex-1 py-2.5 text-sm font-semibold transition-colors ${isAuto ? 'bg-green-700 text-white' : 'bg-transparent text-gray-500'}`;
+  document.getElementById('mode-notify').className =
+    `flex-1 py-2.5 text-sm font-semibold transition-colors ${!isAuto ? 'bg-yellow-600 text-white' : 'bg-transparent text-gray-500'}`;
+  document.getElementById('mode-desc').textContent = isAuto
+    ? 'Books instantly when a slot opens (charges card on file).'
+    : 'Sends you a text when a slot opens — you confirm before anything is booked.';
+}
+
+// ── Start watcher ──────────────────────────────────────────────────────────
+async function startWatcher() {
+  const sorted = [...selectedDates].sort();
+  if (!sorted.length) return alert('Select at least one date on the calendar.');
+  if (!selCourse)     return alert('Select a course.');
+
+  const formatted = sorted.map(d => {
+    const [y, m, day] = d.split('-');
+    return `${m}-${day}-${y}`;
+  });
+
+  const afterTime  = document.getElementById('np-after').value  || null;
+  const beforeTime = document.getElementById('np-before').value || null;
+
+  const r = await fetch('/api/watchers/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      dates:        formatted,
+      scheduleId:   selCourse.id,
+      bookingClass: selCourse.bookingClass,
+      players,
+      afterTime,
+      beforeTime,
+      facilityName: selFacility.name,
+      courseName:   selCourse.name,
+      autoBook:     bookingMode === 'auto',
+      snipe:        snipeMode,
+    }),
+  });
+  const data = await r.json();
+  if (data.ok) { hideNewWatcher(); await refreshWatchers(); }
+  else alert('Error: ' + data.error);
+}
+
+// ── Stop watcher ───────────────────────────────────────────────────────────
+async function stopWatcher(id) {
+  await fetch(`/api/watchers/${id}/stop`, { method: 'POST' });
+  closeStream(id);
+  await refreshWatchers();
+}
+
+// ── Render watcher cards ───────────────────────────────────────────────────
+async function refreshWatchers() {
+  const res = await fetch('/api/watchers');
+  const watchers = await res.json();
+  const list = document.getElementById('watchers-list');
+
+  if (!watchers.length) {
+    Object.keys(openStreams).forEach(closeStream);
+    list.innerHTML = `
+      <div class="card rounded-xl p-6 text-center">
+        <p class="text-3xl mb-2">🏌️</p>
+        <p class="text-gray-400 text-sm">No active watchers.</p>
+        <p class="text-gray-600 text-xs mt-1">Tap <strong class="text-green-700">+ Watch</strong> to start one.</p>
+      </div>`;
+    return;
+  }
+
+  const activeIds = new Set(watchers.map(w => w.id));
+
+  // Close streams for watchers no longer in the list
+  Object.keys(openStreams).forEach(id => { if (!activeIds.has(id)) closeStream(id); });
+
+  // Full re-render (simple and reliable — log history is replayed by SSE on reconnect)
+  list.innerHTML = watchers.map(w => buildCard(w)).join('');
+
+  // Open streams for any watcher that doesn't have one yet
+  watchers.forEach(w => {
+    if (!openStreams[w.id]) streamLog(w.id);
+  });
+}
+
+function buildCard(w) {
+  const after  = w.afterTime  ? formatTime(w.afterTime)  : 'Opening';
+  const before = w.beforeTime ? formatTime(w.beforeTime) : 'Any time';
+  const since  = new Date(w.startedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  const emoji  = courseEmoji(w.courseName);
+  const dates  = (w.dates||[]).join(' · ');
+  const isAuto = w.autoBook !== false;
+
+  return `
+  <div class="card rounded-xl p-4" id="card-${w.id}" data-wid="${w.id}">
+    <div class="flex items-start justify-between mb-3">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full dot-on flex-shrink-0"></div>
+          <span class="font-bold text-green-300">${emoji} ${w.courseName || w.scheduleId}</span>
+          <span class="text-xs text-gray-600 truncate">${w.facilityName || ''}</span>
+        </div>
+        <div class="text-xs text-gray-500 mt-1 ml-4">${dates}</div>
+        <div class="text-xs text-gray-600 ml-4">${after} – ${before} · ${w.players||1} player${(w.players||1)>1?'s':''} · since ${since}</div>
+        <div class="ml-4 mt-1.5 flex gap-1.5 flex-wrap">
+          ${w.snipe ? '<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-900 text-yellow-300">⏰ Snipe</span>' : ''}
+          <span class="text-xs font-semibold px-2 py-0.5 rounded-full ${isAuto ? 'bg-green-900 text-green-400' : 'bg-yellow-900 text-yellow-400'}">
+            ${isAuto ? '⚡ Auto-book' : '🔔 Notify only'}
+          </span>
+        </div>
+      </div>
+      <button onclick="stopWatcher('${w.id}')"
+        class="btn-red text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex-shrink-0 active:scale-95 ml-2">
+        Stop
+      </button>
+    </div>
+    <div class="card2 rounded-lg p-2">
+      <div id="log-${w.id}" class="log-wrap h-28 overflow-y-auto flex flex-col gap-px">
+        <span class="ll-check italic">Connecting to log…</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function courseEmoji(name) {
+  return { Black:'⬛', Blue:'🟦', Red:'🟥', Yellow:'🟨', Green:'🟩' }[name] || '⛳';
+}
+
+// ── Log streaming ──────────────────────────────────────────────────────────
+function streamLog(id) {
+  const es = new EventSource(`/api/watchers/${id}/stream`);
+  openStreams[id] = es;
+  es.onmessage = e => appendLine(id, JSON.parse(e.data));
+  es.onerror   = () => closeStream(id);
+}
+
+function closeStream(id) {
+  openStreams[id]?.close();
+  delete openStreams[id];
+}
+
+function appendLine(id, line) {
+  const box = document.getElementById(`log-${id}`);
+  if (!box) return;
+  const init = box.querySelector('.italic');
+  if (init) init.remove();
+
+  const cls =
+    line.includes('OPEN') || line.includes('BOOKED') ? 'll-found' :
+    line.includes('Error') || line.includes('error')  ? 'll-error' :
+    line.includes('Check') ? 'll-check' : 'll-info';
+
+  const div = document.createElement('div');
+  div.className  = cls;
+  div.textContent = line;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  while (box.children.length > 150) box.removeChild(box.firstChild);
+}
+
+// ── Panel open/close ───────────────────────────────────────────────────────
+function showNewWatcher() {
+  // Default to next Saturday
+  selectedDates = new Set();
+  const d    = new Date();
+  const diff = (6 - d.getDay() + 7) % 7 || 7;
+  d.setDate(d.getDate() + diff);
+  const nextSat = d.toISOString().slice(0, 10);
+  selectedDates.add(nextSat);
+  calMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+
+  snipeMode = false;
+  setPlayers(1);
+  setMode('auto');
+  document.getElementById('new-panel').classList.remove('hidden');
+  renderCourseGrid();
+  renderCalendar();
+  updatePanelTitle();
+}
+
+function hideNewWatcher() {
+  document.getElementById('new-panel').classList.add('hidden');
+}
+
+// ── Facility modal ─────────────────────────────────────────────────────────
+function showFacilityModal() { document.getElementById('facility-modal').classList.remove('hidden'); }
+function hideFacilityModal() { document.getElementById('facility-modal').classList.add('hidden'); }
+
+async function saveFacility() {
+  const f = {
+    id:         document.getElementById('fn-name').value.toLowerCase().replace(/\s+/g,'-'),
+    name:       document.getElementById('fn-name').value,
+    site:       'foreupsoftware',
+    facilityId: document.getElementById('fn-facility').value,
+    bookingUrl: document.getElementById('fn-url').value,
+    username:   document.getElementById('fn-user').value,
+    password:   document.getElementById('fn-pass').value,
+    courses:    [],
+  };
+  await fetch('/api/facilities', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(f),
+  });
+  hideFacilityModal();
+  await loadFacilities();
+}
+
+init();
+</script>
+</body>
+</html>

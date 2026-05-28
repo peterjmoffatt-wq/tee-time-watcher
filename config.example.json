@@ -1,0 +1,9 @@
+{
+  "phone": "+1XXXXXXXXXX",
+  "carrier_gateway": "tmomail.net",
+  "gmail_user": "you@gmail.com",
+  "gmail_app_pass": "xxxx xxxx xxxx xxxx",
+  "twilio_account_sid": "",
+  "twilio_auth_token": "",
+  "twilio_from": ""
+}
