@@ -3,5 +3,8 @@ data
 courses.json
 config.json
 *.log
+.tee_watchers.json
+__pycache__/
+.DS_Store
 .git
 .gitignore

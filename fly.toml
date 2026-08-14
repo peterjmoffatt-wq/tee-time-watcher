@@ -1,4 +1,6 @@
-# fly.toml — adjust `app` to whatever name you claim with `fly apps create`.
+# fly.toml — generated for tee-time-watcher, adjusted from Fly's auto-launch
+# defaults for this app's needs (long-running background watcher processes,
+# a Python child process, and a persistent data volume).
 app = "tee-time-watcher"
 primary_region = "iad"
 
@@ -28,3 +30,8 @@ primary_region = "iad"
     method        = "GET"
     path          = "/healthz"
     timeout       = "5s"
+
+[[vm]]
+  memory   = "512mb"
+  cpu_kind = "shared"
+  cpus     = 1
