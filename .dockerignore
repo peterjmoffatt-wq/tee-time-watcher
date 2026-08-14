@@ -1,0 +1,7 @@
+courses.json
+config.json
+node_modules/
+*.log
+.tee_watchers.json
+__pycache__/
+.DS_Store
