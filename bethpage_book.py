@@ -238,7 +238,7 @@ def ts() -> str:
 
 # ── 7 PM Drop Sniper ──────────────────────────────────────────────────────────
 def run_snipe(args, session, jwt, schedule_id, booking_class, players,
-              after_time, before_time, course_name):
+              after_time, before_time, course_name, facility_label):
     now      = datetime.now()
     drop     = now.replace(hour=SNIPE_DROP_HOUR, minute=0, second=0, microsecond=0)
     drop_end = drop + timedelta(minutes=SNIPE_WINDOW_MIN)
@@ -261,7 +261,7 @@ def run_snipe(args, session, jwt, schedule_id, booking_class, players,
 
         if now >= drop_end:
             print(f"\n[{ts()}] Snipe window closed — no matching slot found.")
-            send_sms(f"Bethpage {course_name}: 7 PM drop window closed, nothing in your time window.")
+            send_sms(f"{facility_label} {course_name}: 7 PM drop window closed, nothing in your time window.")
             return False
 
         if secs_to > 120:
@@ -293,7 +293,7 @@ def run_snipe(args, session, jwt, schedule_id, booking_class, players,
         for date in args.dates:
             try:
                 times     = fetch_times(session, jwt, date, schedule_id, booking_class, players)
-                available = [t for t in times if t.get("available_spots", 0) > 0]
+                available = [t for t in times if t.get("available_spots", 0) >= players]
 
                 if not available:
                     print(f"  {date}: no slots yet", flush=True)
@@ -319,7 +319,7 @@ def run_snipe(args, session, jwt, schedule_id, booking_class, players,
                     print(f"  >>> BOOKING {slot['time']} ...", flush=True)
                     result = create_pending(session, jwt, slot, schedule_id, booking_class, players)
                     if result and (result.get("reservation") or result.get("pending_reservation_id")):
-                        msg = (f"Bethpage {course_name} SNIPED!\n"
+                        msg = (f"{facility_label} {course_name} SNIPED!\n"
                                f"Date: {date}\nTime: {slot['time']}\nComplete: {booking_link}")
                         print(f"\n{'='*55}\n{msg}\n{'='*55}")
                         send_sms(msg)
@@ -327,7 +327,7 @@ def run_snipe(args, session, jwt, schedule_id, booking_class, players,
                     else:
                         print(f"  Booking failed: {json.dumps(result or {})[:200]}", flush=True)
                 else:
-                    msg = (f"Bethpage {course_name} DROP — slot open!\n"
+                    msg = (f"{facility_label} {course_name} DROP — slot open!\n"
                            f"Date: {date}\nTime: {bookable[0]['time']}\nBook now: {booking_link}")
                     send_sms(msg)
                     return True
@@ -373,8 +373,18 @@ def main():
     after_time    = args.after
     before_time   = args.before
 
-    # Load facility credentials from courses.json
-    fac = _fac_by_course.get(str(schedule_id), {})
+    # Load facility credentials — TEE_CREDS (set by server.js for a single web-triggered
+    # watcher run) takes priority; falls back to courses.json for direct CLI usage.
+    tee_creds = os.environ.get('TEE_CREDS')
+    if tee_creds:
+        try:
+            fac = json.loads(tee_creds)
+        except json.JSONDecodeError:
+            print("TEE_CREDS was set but is not valid JSON.")
+            sys.exit(1)
+    else:
+        fac = _fac_by_course.get(str(schedule_id), {})
+
     if not fac:
         print(f"No facility found for schedule_id {schedule_id} in courses.json.")
         sys.exit(1)
@@ -385,9 +395,13 @@ def main():
     CREDIT_CARD_ID = fac.get('credit_card_id', '')
     BOOKING_URL    = f"https://foreupsoftware.com/index.php/booking/{COURSE_ID}/"
 
-    course_name = next((k.title() for k, v in COURSES.items() if v == schedule_id), schedule_id)
+    course_name = next(
+        (c['name'] for c in fac.get('courses', []) if str(c.get('id')) == str(schedule_id)),
+        next((k.title() for k, v in COURSES.items() if v == schedule_id), schedule_id),
+    )
+    facility_label = fac.get('name', 'Course')
 
-    print(f"\n{fac.get('name', 'Course')} — {course_name}")
+    print(f"\n{facility_label} — {course_name}")
     print(f"  Dates:   {', '.join(args.dates)}")
     print(f"  Players: {players}")
     print(f"  Window:  {after_time or 'Opening'} – {before_time or 'Any time'}")
@@ -409,7 +423,7 @@ def main():
         nonlocal session, jwt
         for date in args.dates:
             times     = fetch_times(session, jwt, date, schedule_id, booking_class, players)
-            available = [t for t in times if t.get("available_spots", 0) > 0]
+            available = [t for t in times if t.get("available_spots", 0) >= players]
             print(f"  {date}: {len(available)} avail / {len(times)} total")
 
             if not available:
@@ -435,7 +449,7 @@ def main():
                 print(f"  Booking {slot['time']} ...")
                 result = create_pending(session, jwt, slot, schedule_id, booking_class, players)
                 if result and (result.get("reservation") or result.get("pending_reservation_id")):
-                    msg = (f"Bethpage {course_name} BOOKED!\n"
+                    msg = (f"{facility_label} {course_name} BOOKED!\n"
                            f"Date: {date}\nTime: {slot['time']}\nComplete here: {booking_link}")
                     print(f"\n{'='*55}\n{msg}\n{'='*55}")
                     send_sms(msg)
@@ -443,7 +457,7 @@ def main():
                 else:
                     print(f"  Pending failed: {json.dumps(result, indent=2)[:300]}")
             else:
-                msg = (f"Bethpage {course_name} slot open!\n"
+                msg = (f"{facility_label} {course_name} slot open!\n"
                        f"Date: {date}\nTime: {available[0]['time']}\nBook now: {booking_link}")
                 send_sms(msg)
 
@@ -454,7 +468,7 @@ def main():
 
     if args.snipe:
         run_snipe(args, session, jwt, schedule_id, booking_class, players,
-                  after_time, before_time, course_name)
+                  after_time, before_time, course_name, facility_label)
         return
 
     if args.check:

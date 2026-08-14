@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Tee Time Watcher</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/auth.js"></script>
   <style>
     body { background: #0f1a0f; color: #e8f5e8; }
     .card  { background: #1a2e1a; border: 1px solid #2d4a2d; }
@@ -42,7 +43,10 @@
   <div class="flex items-center justify-between mb-5">
     <div>
       <h1 class="text-2xl font-bold text-green-400">⛳ Tee Time</h1>
-      <p class="text-xs text-green-800 mt-0.5">Multi-course watcher</p>
+      <p class="text-xs text-green-800 mt-0.5">
+        <span id="user-email"></span>
+        <button onclick="logout()" class="underline text-green-900 ml-1">Sign out</button>
+      </p>
     </div>
     <button onclick="showNewWatcher()"
       class="btn-green text-white text-sm font-semibold px-4 py-2 rounded-xl active:scale-95">
@@ -182,6 +186,11 @@ let calMonth      = new Date();
 
 // ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
+  const me = await requireAuthOrRedirect();
+  if (!me) return; // redirected to /login.html
+
+  document.getElementById('user-email').textContent = me.email;
+
   buildTimeOptions();
   updateDropBanner();
   setInterval(updateDropBanner, 1000);
@@ -280,7 +289,7 @@ function formatTime(hhmm) {
 
 // ── Facilities ─────────────────────────────────────────────────────────────
 async function loadFacilities() {
-  const res = await fetch('/api/courses');
+  const res = await fetch('/api/facilities');
   facilities = await res.json();
   const sel = document.getElementById('np-facility');
   sel.innerHTML = facilities.map((f, i) =>

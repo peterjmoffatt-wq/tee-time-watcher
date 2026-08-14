@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Tee Time Watcher — Sign in</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0f1a0f; color: #e8f5e8; }
+    .card  { background: #1a2e1a; border: 1px solid #2d4a2d; }
+    .inp   { background: #0f1a0f; border: 1px solid #2d4a2d; color: #e8f5e8; border-radius: 0.5rem; padding: 0.6rem 0.75rem; font-size: 0.875rem; width: 100%; }
+    .inp:focus { outline: none; border-color: #4ade80; }
+    .btn-green  { background:#16a34a; } .btn-green:hover  { background:#15803d; }
+    .tab { padding: 0.5rem 0; font-size: 0.875rem; font-weight: 600; color: #6b7280; cursor: pointer; }
+    .tab.active { color: #4ade80; border-bottom: 2px solid #4ade80; }
+  </style>
+</head>
+<body class="min-h-screen p-4 flex items-center justify-center">
+  <div class="card rounded-2xl p-6 w-full max-w-sm">
+    <h1 class="text-2xl font-bold text-green-400 mb-1">⛳ Tee Time</h1>
+    <p class="text-xs text-green-800 mb-5">Multi-course watcher</p>
+
+    <div class="flex gap-4 mb-4 border-b border-green-900">
+      <div id="tab-login"  class="tab active" onclick="setTab('login')">Sign in</div>
+      <div id="tab-signup" class="tab"        onclick="setTab('signup')">Sign up</div>
+    </div>
+
+    <form id="form" class="flex flex-col gap-3" onsubmit="return submitForm(event)">
+      <input id="email"    class="inp" type="email"    placeholder="Email"    required autocomplete="username">
+      <input id="password" class="inp" type="password" placeholder="Password" required autocomplete="current-password">
+      <input id="invite"   class="inp hidden" type="text" placeholder="Invite code" autocomplete="off">
+      <p id="error" class="text-xs text-red-400 hidden"></p>
+      <button id="submit-btn" type="submit" class="btn-green text-white text-sm font-bold py-3 rounded-xl active:scale-95">
+        Sign in
+      </button>
+    </form>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script>
+    let mode = 'login';
+
+    function setTab(m) {
+      mode = m;
+      document.getElementById('tab-login').classList.toggle('active', m === 'login');
+      document.getElementById('tab-signup').classList.toggle('active', m === 'signup');
+      document.getElementById('invite').classList.toggle('hidden', m !== 'signup');
+      document.getElementById('password').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
+      document.getElementById('submit-btn').textContent = m === 'signup' ? 'Create account' : 'Sign in';
+      document.getElementById('error').classList.add('hidden');
+    }
+
+    async function submitForm(e) {
+      e.preventDefault();
+      const errEl = document.getElementById('error');
+      errEl.classList.add('hidden');
+
+      const email    = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const invite   = document.getElementById('invite').value;
+
+      const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login';
+      const body = mode === 'signup' ? { email, password, inviteCode: invite } : { email, password };
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        window.location.href = '/';
+      } else {
+        errEl.textContent = data.error || 'Something went wrong.';
+        errEl.classList.remove('hidden');
+      }
+      return false;
+    }
+
+    // If already logged in, skip straight to the app.
+    checkAuth().then(me => { if (me && me.ok) window.location.href = '/'; });
+  </script>
+</body>
+</html>
